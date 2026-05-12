@@ -3,33 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>(((🪞)))</title>
+    <title>🪞🪞🪞</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             background-color: #000; overflow: hidden;
-            font-family: 'Courier New', Courier, monospace;
-            touch-action: none; /* 防止畫面被滑動拉扯 */
+            touch-action: none;
         }
 
-        /* 隱藏原生影片，但絕對不能用 display: none，否則 iOS 會停止解碼 */
         #camera-video {
-            position: absolute;
-            width: 1px; height: 1px;
+            position: absolute; width: 1px; height: 1px;
             opacity: 0.01; pointer-events: none; z-index: -1;
         }
 
-        /* 填滿全螢幕的畫布 */
-        #ascii-canvas {
+        #art-canvas {
             position: absolute; top: 0; left: 0;
             width: 100vw; height: 100vh;
             z-index: 0;
         }
 
-        /* 極簡快門按鈕 UI */
+        /* 圓形快門按鈕 */
         #shutter-btn {
             position: absolute;
-            bottom: 15%;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
             width: 70px;
@@ -42,48 +38,40 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            /* 加上一點陰影讓它在 ASCII 背景上更明顯 */
             box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
         }
 
-        /* 快門按鈕的內圈 */
         #shutter-btn::after {
             content: '';
             width: 54px;
             height: 54px;
             background-color: #fff;
             border-radius: 50%;
-            transition: transform 0.1s ease-out, background-color 0.1s;
+            transition: transform 0.1s ease-out;
         }
 
-        /* 按下快門時的回饋動畫 */
         #shutter-btn:active::after {
             transform: scale(0.85);
-            background-color: #ddd;
         }
         
-        /* 拍照時的螢幕白光閃爍效果 */
         #flash-overlay {
             position: absolute; top: 0; left: 0;
             width: 100vw; height: 100vh;
             background-color: white;
             opacity: 0; pointer-events: none; z-index: 20;
-            transition: opacity 0.3s ease-out;
         }
     </style>
 </head>
 <body>
 
     <video id="camera-video" autoplay playsinline webkit-playsinline muted></video>
-    
-    <canvas id="ascii-canvas"></canvas>
-    
+    <canvas id="art-canvas"></canvas>
     <div id="shutter-btn"></div>
     <div id="flash-overlay"></div>
 
     <script>
         const video = document.getElementById('camera-video');
-        const displayCanvas = document.getElementById('ascii-canvas');
+        const displayCanvas = document.getElementById('art-canvas');
         const displayCtx = displayCanvas.getContext('2d', { willReadFrequently: true });
         const shutterBtn = document.getElementById('shutter-btn');
         const flashOverlay = document.getElementById('flash-overlay');
@@ -92,15 +80,10 @@
         const pixelCtx = pixelCanvas.getContext('2d', { willReadFrequently: true });
 
         // ==========================================
-        // 藝術家設定區 (寫死在程式碼中)
+        // 藝術家參數設定 (解析度)
         // ==========================================
-        // 字元從暗到亮排列。我在最後加上了一個「空白」，讓最亮的地方留白，層次感更好
-        const CHARS = "一人凡心禾忙助典俄哲族筆詩語劇曉戲難願繼躍讀變靈觀灣驤鸚鬱鸞灩籲麤"; 
-        
-        // 解析度：控制橫向要有幾個字元。數字越大越精細，但運算負擔也越大
-        const RESOLUTION = 50; 
+        const RESOLUTION = 60; // 橫向色塊的數量，越小色塊越大
 
-        // 啟動相機
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -108,26 +91,21 @@
                     audio: false
                 });
                 video.srcObject = stream;
-                
-                // 確保影片資料載入後再播放，並啟動繪圖迴圈
                 video.onloadedmetadata = () => {
                     video.play();
-                    requestAnimationFrame(renderASCII);
+                    requestAnimationFrame(renderLoop);
                 };
             } catch (err) {
-                alert("無法存取相機！請確認已給予權限。");
+                alert("相機啟動失敗，請確保使用 HTTPS 並授權相機權限。");
             }
         }
 
-        // 核心渲染迴圈
-        function renderASCII() {
-            // 如果影片還沒準備好，繼續等待
+        function renderLoop() {
             if (video.videoWidth === 0) {
-                requestAnimationFrame(renderASCII);
+                requestAnimationFrame(renderLoop);
                 return;
             }
 
-            // 同步畫布大小與螢幕大小
             const w = window.innerWidth;
             const h = window.innerHeight;
             if (displayCanvas.width !== w) {
@@ -135,71 +113,68 @@
                 displayCanvas.height = h;
             }
 
-            // 計算字元大小與行列數
+            // 計算色塊大小
+            const blockSize = w / RESOLUTION;
             const cols = RESOLUTION;
-            const charWidth = w / cols;
-            // 中文字通常是正方形，所以字高幾乎等於字寬
-            const fontSize = charWidth; 
-            const rows = Math.ceil(h / fontSize);
+            const rows = Math.ceil(h / blockSize);
 
-            // 調整隱藏像素畫布的尺寸
             pixelCanvas.width = cols;
             pixelCanvas.height = rows;
 
-            // 將相機畫面畫到縮小的像素畫布上 (會根據螢幕自動裁切比例)
+            // 將相機畫面縮小到像素畫布
             pixelCtx.drawImage(video, 0, 0, cols, rows);
             const pixels = pixelCtx.getImageData(0, 0, cols, rows).data;
 
-            // 填滿純黑背景
+            // 清空背景
             displayCtx.fillStyle = '#000';
             displayCtx.fillRect(0, 0, w, h);
 
-            // 設定文字樣式 (這裡使用白色，如果你想要駭客綠可以改成 '#00ffcc')
-            displayCtx.fillStyle = '#fff';
-            displayCtx.font = `${fontSize}px monospace`;
-            displayCtx.textBaseline = 'top';
-
-            // 遍歷像素並轉化為中文字元
             for (let y = 0; y < rows; y++) {
-                let rowString = '';
                 for (let x = 0; x < cols; x++) {
                     const offset = (y * cols + x) * 4;
                     const r = pixels[offset];
                     const g = pixels[offset + 1];
                     const b = pixels[offset + 2];
 
+                    // 計算亮度 (0~255)
                     const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
-                    const charIndex = Math.floor((luminance / 255) * (CHARS.length - 1));
                     
-                    rowString += CHARS[charIndex];
+                    // 【核心邏輯】將亮度映射到 0%, 10%, ... 100% 的灰階
+                    // 我們將亮度除以 255 得到 0~1，乘上 10 再四捨五入，得到 0~10 的級別
+                    const level = Math.round((luminance / 255) * 10);
+                    // 再將這個級別轉回 0~255 的灰階數值
+                    const grayValue = Math.floor(level * 25.5);
+
+                    // 設定畫布顏色為該級別的灰色
+                    displayCtx.fillStyle = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+                    
+                    // 在對應位置畫出正方形色塊
+                    // 使用 Math.ceil(blockSize) 是為了確保色塊之間沒有細微縫隙
+                    displayCtx.fillRect(x * blockSize, y * blockSize, Math.ceil(blockSize), Math.ceil(blockSize));
                 }
-                // 每行畫一次，效能遠高於每個字元畫一次
-                displayCtx.fillText(rowString, 0, y * fontSize);
             }
 
-            requestAnimationFrame(renderASCII);
+            requestAnimationFrame(renderLoop);
         }
 
-        // 拍照與下載功能
+        // 快門拍照
         shutterBtn.addEventListener('click', () => {
-            // 1. 觸發閃光燈視覺效果
+            // 閃光效果
             flashOverlay.style.opacity = '1';
             flashOverlay.style.transition = 'none';
             setTimeout(() => {
-                flashOverlay.style.transition = 'opacity 0.5s ease-out';
+                flashOverlay.style.transition = 'opacity 0.4s ease-out';
                 flashOverlay.style.opacity = '0';
-            }, 50);
+            }, 40);
 
-            // 2. 擷取畫面並下載
+            // 儲存 PNG
             const dataURL = displayCanvas.toDataURL('image/png');
             const link = document.createElement('a');
-            // 檔名加上時間戳記
-            link.download = `Vibe-Camera-${new Date().getTime()}.png`;
+            link.download = `Grayscale-Art-${Date.now()}.png`;
             link.href = dataURL;
             link.click();
         });
 
-        // 啟動程式
         window.addEventListener('load', startCamera);
     </script>
 </body>
