@@ -24,22 +24,25 @@
 
         /* 圓形快門按鈕 */
         #shutter-btn {
-            position: absolute;
-            bottom: 25px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 70px;
-            height: 70px;
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 4px solid #fff;
-            border-radius: 50%;
-            cursor: pointer;
-            z-index: 10;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
-        }
+    position: absolute;
+    /* 使用 10vh，代表按鈕底部距離螢幕最下方剛好是總高度的 10% */
+    bottom: 10vh; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 70px;
+    height: 70px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 4px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    /* 增加這行可以防止在手機上點擊時出現藍色框框 */
+    -webkit-tap-highlight-color: transparent; 
+}
 
         #shutter-btn::after {
             content: '';
