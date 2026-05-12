@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vibe Coding - 實時相機 ASCII 藝術</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #0a0a0a; color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden; /* 防止滑動 */
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* 控制面板懸浮在最上方 */
+        #controls {
+            position: absolute; top: 10px; width: 90%; max-width: 600px;
+            background: rgba(17, 17, 17, 0.85); backdrop-filter: blur(5px);
+            padding: 15px; border: 1px solid #333; border-radius: 8px;
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between;
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px;
+            font-size: 0.8rem;
+        }
+
+        input[type="text"], input[type="range"] {
+            background: #222; color: #00ffcc; border: 1px solid #444; padding: 5px;
+        }
+
+        /* 拍照按鈕 Vibe 設計 */
+        #capture-btn {
+            width: 100%; padding: 12px; margin-top: 5px;
+            background: #00ffcc; color: #000; font-weight: bold; font-size: 1rem;
+            border: none; border-radius: 4px; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 2px;
+            transition: all 0.2s;
+        }
+        #capture-btn:active { background: #fff; transform: scale(0.98); }
+
+        /* 顯示 ASCII 藝術的畫布 */
+        #ascii-canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            object-fit: contain; /* 確保畫面完整呈現 */
+            z-index: 0;
+        }
+
+        /* 隱藏原生相機影片 */
+        #camera-video { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <div class="control-group">
+            <label>字元集 (暗 → 亮)</label>
+            <input type="text" id="charSet" value="@%#*+=-:. ">
+        </div>
+        <div class="control-group">
+            <label>解析度 (越小越密)</label>
+            <input type="range" id="resolution" min="40" max="150" value="80">
+        </div>
+        <button id="capture-btn">📸 擷取畫面 (Save PNG)</button>
+    </div>
+
+    <video id="camera-video" autoplay playsinline muted></video>
+    
+    <canvas id="ascii-canvas"></canvas>
+
+    <script>
+        const video = document.getElementById('camera-video');
+        const displayCanvas = document.getElementById('ascii-canvas');
+        const displayCtx = displayCanvas.getContext('2d', { willReadFrequently: true });
+        
+        const charSetInput = document.getElementById('charSet');
+        const resolutionInput = document.getElementById('resolution');
+        const captureBtn = document.getElementById('capture-btn');
+
+        // 建立一個隱藏的小畫布，用來縮小影片並讀取像素
+        const pixelCanvas = document.createElement('canvas');
+        const pixelCtx = pixelCanvas.getContext('2d', { willReadFrequently: true });
+
+        // 1. 啟動後置相機
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" },
+                    audio: false
+                });
+                video.srcObject = stream;
+                // 確保影片開始播放後才啟動渲染迴圈
+                video.onplaying = () => { requestAnimationFrame(renderASCII); };
+            } catch (err) {
+                alert("無法存取相機！請確認網址是 https 開頭，並允許相機權限。");
+                console.error(err);
+            }
+        }
+
+        // 2. 核心渲染迴圈 (每秒更新 60 次)
+        function renderASCII() {
+            if (video.videoWidth === 0) {
+                requestAnimationFrame(renderASCII);
+                return;
+            }
+
+            const chars = charSetInput.value;
+            if (chars.length === 0) return;
+
+            // 取得使用者設定的解析度 (每行的字元數量)
+            const cols = parseInt(resolutionInput.value);
+            // 根據影片比例計算高度 (乘以 0.5 是為了修正字體偏長的比例)
+            const ratio = video.videoHeight / video.videoWidth;
+            const rows = Math.floor(cols * ratio * 0.5); 
+
+            // 將隱藏的像素畫布設為指定解析度，並畫上影片
+            pixelCanvas.width = cols;
+            pixelCanvas.height = rows;
+            pixelCtx.drawImage(video, 0, 0, cols, rows);
+            const pixels = pixelCtx.getImageData(0, 0, cols, rows).data;
+
+            // 設定顯示用的大畫布尺寸
+            // 我們把字體大小固定，畫布總大小 = 字元數 * 字體大小
+            const fontSize = 12;
+            const charWidth = fontSize * 0.6; // 等寬字體的寬度大約是高度的 0.6 倍
+            
+            displayCanvas.width = cols * charWidth;
+            displayCanvas.height = rows * fontSize;
+
+            // 塗黑背景
+            displayCtx.fillStyle = '#0a0a0a';
+            displayCtx.fillRect(0, 0, displayCanvas.width, displayCanvas.height);
+
+            // 設定 ASCII 字型與顏色
+            displayCtx.fillStyle = '#00ffcc'; // 霓虹綠
+            displayCtx.font = fontSize + 'px monospace';
+            displayCtx.textBaseline = 'top';
+
+            // 遍歷所有像素，轉成字元並畫到畫布上
+            for (let y = 0; y < rows; y++) {
+                let rowString = '';
+                for (let x = 0; x < cols; x++) {
+                    const offset = (y * cols + x) * 4;
+                    const r = pixels[offset];
+                    const g = pixels[offset + 1];
+                    const b = pixels[offset + 2];
+
+                    // 計算亮度
+                    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+                    const charIndex = Math.floor((luminance / 255) * (chars.length - 1));
+                    
+                    rowString += chars[charIndex];
+                }
+                // 把這一整行的字元畫到畫布上
+                displayCtx.fillText(rowString, 0, y * fontSize);
+            }
+
+            // 不斷重複執行以達到即時影像效果
+            requestAnimationFrame(renderASCII);
+        }
+
+        // 3. 拍照並下載 PNG 功能
+        captureBtn.addEventListener('click', () => {
+            // 將 Canvas 轉換成 Base64 格式的圖片資料
+            const dataURL = displayCanvas.toDataURL('image/png');
+            
+            // 建立一個隱藏的 <a> 標籤來觸發下載
+            const link = document.createElement('a');
+            link.download = `Vibe-ASCII-${Date.now()}.png`; // 自動產生加上時間戳記的檔名
+            link.href = dataURL;
+            link.click();
+        });
+
+        // 網頁載入完成後啟動相機
+        window.addEventListener('load', startCamera);
+    </script>
+</body>
+</html>
