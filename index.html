@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ascii</title>
+    <title>📸</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             background-color: #000; overflow: hidden;
-            touch-action: none;
+            touch-action: none; /* 防止手機上的預設滑動/縮放行為 */
+            cursor: pointer; /* 提示整個畫面皆可點擊 */
+            /* 避免點擊時出現藍色高光閃爍 */
+            -webkit-tap-highlight-color: transparent; 
         }
 
         #camera-video {
@@ -22,41 +25,25 @@
             z-index: 0;
         }
 
-        /* 圓形快門按鈕 */
-        #shutter-btn {
-    position: absolute;
-    /* 使用 10vh，代表按鈕底部距離螢幕最下方剛好是總高度的 10% */
-    bottom: 10vh; 
-    left: 50%;
-    transform: translateX(-50%);
-    width: 70px;
-    height: 70px;
-    background-color: rgba(255, 255, 255, 0.2);
-    border: 4px solid #fff;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 10;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    /* 增加這行可以防止在手機上點擊時出現藍色框框 */
-    -webkit-tap-highlight-color: transparent; 
-}
-
-        #shutter-btn::after {
-            content: '';
-            width: 54px;
-            height: 54px;
-            background-color: #fff;
-            border-radius: 50%;
-            transition: transform 0.1s ease-out;
-        }
-
-        #shutter-btn:active::after {
-            transform: scale(0.85);
+        /* 拍攝提示文字 */
+        #instruction-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.8);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 1rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-align: center;
+            pointer-events: none; /* 讓點擊事件可以穿透文字 */
+            z-index: 30;
+            opacity: 1;
+            transition: opacity 1s ease-out; /* 設定 1 秒的淡出動畫 */
         }
         
+        /* 閃光燈覆蓋層 */
         #flash-overlay {
             position: absolute; top: 0; left: 0;
             width: 100vw; height: 100vh;
@@ -69,15 +56,17 @@
 
     <video id="camera-video" autoplay playsinline webkit-playsinline muted></video>
     <canvas id="art-canvas"></canvas>
-    <div id="shutter-btn"></div>
+    
+    <div id="instruction-text">𝚝𝚘𝚞𝚌𝚑 𝚝𝚑𝚎 𝚜𝚌𝚛𝚎𝚎𝚗 𝚝𝚘 𝚜𝚑𝚘𝚘𝚝</div>
+    
     <div id="flash-overlay"></div>
 
     <script>
         const video = document.getElementById('camera-video');
         const displayCanvas = document.getElementById('art-canvas');
         const displayCtx = displayCanvas.getContext('2d', { willReadFrequently: true });
-        const shutterBtn = document.getElementById('shutter-btn');
         const flashOverlay = document.getElementById('flash-overlay');
+        const instructionText = document.getElementById('instruction-text');
 
         const pixelCanvas = document.createElement('canvas');
         const pixelCtx = pixelCanvas.getContext('2d', { willReadFrequently: true });
@@ -97,6 +86,11 @@
                 video.onloadedmetadata = () => {
                     video.play();
                     requestAnimationFrame(renderLoop);
+                    
+                    // 相機啟動後 1 秒，觸發提示文字淡出
+                    setTimeout(() => {
+                        instructionText.style.opacity = '0';
+                    }, 1000);
                 };
             } catch (err) {
                 alert("相機啟動失敗，請確保使用 HTTPS 並授權相機權限。");
@@ -116,7 +110,6 @@
                 displayCanvas.height = h;
             }
 
-            // 計算色塊大小
             const blockSize = w / RESOLUTION;
             const cols = RESOLUTION;
             const rows = Math.ceil(h / blockSize);
@@ -124,11 +117,9 @@
             pixelCanvas.width = cols;
             pixelCanvas.height = rows;
 
-            // 將相機畫面縮小到像素畫布
             pixelCtx.drawImage(video, 0, 0, cols, rows);
             const pixels = pixelCtx.getImageData(0, 0, cols, rows).data;
 
-            // 清空背景
             displayCtx.fillStyle = '#000';
             displayCtx.fillRect(0, 0, w, h);
 
@@ -139,20 +130,11 @@
                     const g = pixels[offset + 1];
                     const b = pixels[offset + 2];
 
-                    // 計算亮度 (0~255)
                     const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
-                    
-                    // 【核心邏輯】將亮度映射到 0%, 10%, ... 100% 的灰階
-                    // 我們將亮度除以 255 得到 0~1，乘上 10 再四捨五入，得到 0~10 的級別
                     const level = Math.round((luminance / 255) * 10);
-                    // 再將這個級別轉回 0~255 的灰階數值
                     const grayValue = Math.floor(level * 25.5);
 
-                    // 設定畫布顏色為該級別的灰色
                     displayCtx.fillStyle = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
-                    
-                    // 在對應位置畫出正方形色塊
-                    // 使用 Math.ceil(blockSize) 是為了確保色塊之間沒有細微縫隙
                     displayCtx.fillRect(x * blockSize, y * blockSize, Math.ceil(blockSize), Math.ceil(blockSize));
                 }
             }
@@ -160,8 +142,8 @@
             requestAnimationFrame(renderLoop);
         }
 
-        // 快門拍照
-        shutterBtn.addEventListener('click', () => {
+        // 快門拍照邏輯：現在綁定到整個 document.body 上
+        document.body.addEventListener('click', () => {
             // 閃光效果
             flashOverlay.style.opacity = '1';
             flashOverlay.style.transition = 'none';
